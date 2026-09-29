@@ -1,0 +1,660 @@
+// ==============================================================================
+// PRISMA SCHEMA — SHOLKVEDA AYURVEDIC E-COMMERCE PLATFORM
+// Compatible with Neon PostgreSQL (Production) and Hostinger MySQL (Future Target)
+// ==============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ------------------------------------------------------------------------------
+// 1. IDENTITY & ACCESS CONTROL (RBAC)
+// ------------------------------------------------------------------------------
+
+enum SystemRole {
+  SUPER_ADMIN
+  ADMIN
+  PRODUCT_MANAGER
+  ORDER_MANAGER
+  CONTENT_MANAGER
+  CUSTOMER
+}
+
+enum PermissionKey {
+  MANAGE_SETTINGS
+  MANAGE_PAYMENTS
+  MANAGE_USERS
+  MANAGE_PRODUCTS
+  MANAGE_INVENTORY
+  MANAGE_ORDERS
+  MANAGE_CUSTOMERS
+  MANAGE_CMS
+  MANAGE_BLOG
+  MANAGE_COUPONS
+  MANAGE_REVIEWS
+  VIEW_ANALYTICS
+  VIEW_AUDIT_LOGS
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  phone        String?       @unique
+  passwordHash String
+  fullName     String
+  isActive     Boolean       @default(true)
+  isVerified   Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  addresses    Address[]
+  orders       Order[]
+  reviews      Review[]
+  cart         Cart?
+  wishlist     Wishlist?
+  couponUsages CouponUsage[]
+  roles        UserRole[]
+  auditLogs    AuditLog[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        SystemRole       @unique
+  description String?
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model RolePermission {
+  id         String        @id @default(uuid())
+  roleId     String
+  permission PermissionKey
+  role       Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
+  @@index([roleId])
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  userId       String
+  fullName     String
+  phone        String
+  addressLine1 String
+  addressLine2 String?
+  landmark     String?
+  city         String
+  state        String
+  pincode      String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([pincode])
+}
+
+// ------------------------------------------------------------------------------
+// 2. CATALOG & TAXONOMY
+// ------------------------------------------------------------------------------
+
+enum AyurvedicFormulation {
+  AWALEHA
+  CHURNA
+  VATI
+  ASAVA_ARISHTA
+  TAILA
+  GHRITA
+  KWATH
+  KWATHA
+  BHASMA
+  LEPA
+  SYRUP
+  CAPSULE
+  TABLET
+  RAW_HERB
+  WELLNESS
+  OTHER
+}
+
+model Category {
+  id              String     @id @default(uuid())
+  name            String
+  slug            String     @unique
+  description     String?
+  imageUrl        String?
+  parentId        String?
+  displayOrder    Int        @default(0)
+  isActive        Boolean    @default(true)
+  metaTitle       String?
+  metaDescription String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  parent          Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Category[] @relation("CategoryHierarchy")
+  products        Product[]
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+model Product {
+  id                   String               @id @default(uuid())
+  categoryId           String
+  name                 String
+  slug                 String               @unique
+  skuPrefix            String
+  shortDescription     String?
+  fullDescription      String
+  ingredients          String
+  benefits             String
+  usageInstructions    String
+  precautions          String?
+  ayurvedicFormulation AyurvedicFormulation @default(WELLNESS)
+  ayushLicenseNo       String?
+  fssaiLicenseNo       String?
+  isFeatured           Boolean              @default(false)
+  isBestseller         Boolean              @default(false)
+  isNewArrival         Boolean              @default(false)
+  isActive             Boolean              @default(true)
+  metaTitle            String?
+  metaDescription      String?
+  metaKeywords         String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  category             Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  variants             ProductVariant[]
+  images               ProductImage[]
+  reviews              Review[]
+  wishlistItems        WishlistItem[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([isBestseller])
+}
+
+model ProductVariant {
+  id                String            @id @default(uuid())
+  productId         String
+  sku               String            @unique
+  sizeLabel         String            // e.g. "100g", "250g", "60 Caps", "500ml"
+  mrp               Float             // Maximum Retail Price (INR)
+  sellingPrice      Float             // Discounted Selling Price (INR)
+  costPrice         Float             // Cost of Goods Sold for margin analytics
+  stockQuantity     Int               @default(0)
+  reservedQuantity  Int               @default(0)
+  lowStockThreshold Int               @default(5)
+  weightInGrams     Int               @default(0)
+  isDefault         Boolean           @default(false)
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  product           Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  inventoryLedgers  InventoryLedger[]
+
+  @@index([productId])
+  @@index([sku])
+  @@index([stockQuantity])
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  imageUrl  String
+  altText   String?
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ------------------------------------------------------------------------------
+// 3. INVENTORY & STOCK LEDGER
+// ------------------------------------------------------------------------------
+
+enum InventoryChangeReason {
+  SALE
+  ORDER_CANCELLATION
+  MANUAL_RESTOCK
+  DAMAGE_WRITE_OFF
+  STOCK_AUDIT_ADJUSTMENT
+}
+
+model InventoryLedger {
+  id           String                @id @default(uuid())
+  variantId    String
+  changeQty    Int
+  resultingQty Int
+  reason       InventoryChangeReason
+  referenceId  String?               // Order ID or Admin User ID
+  notes        String?
+  createdAt    DateTime              @default(now())
+
+  variant      ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------------------------
+// 4. CART & WISHLIST
+// ------------------------------------------------------------------------------
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String?    @unique
+  sessionId String?    @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  @@index([sessionId])
+}
+
+model CartItem {
+  id        String         @id @default(uuid())
+  cartId    String
+  variantId String
+  quantity  Int            @default(1)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+  @@index([cartId])
+  @@index([variantId])
+}
+
+model Wishlist {
+  id        String         @id @default(uuid())
+  userId    String         @unique
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     WishlistItem[]
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  wishlistId String
+  productId  String
+  createdAt  DateTime @default(now())
+
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([wishlistId, productId])
+  @@index([wishlistId])
+}
+
+// ------------------------------------------------------------------------------
+// 5. ORDERS, PAYMENTS & FULFILLMENT
+// ------------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentGateway {
+  RAZORPAY
+  CASH_ON_DELIVERY
+}
+
+model Order {
+  id                 String         @id @default(uuid())
+  orderNumber        String         @unique
+  userId             String?
+  customerName       String
+  customerEmail      String
+  customerPhone      String
+  shippingAddress    String         // JSON snapshot of shipping address
+  billingAddress     String?        // JSON snapshot of billing address
+  subtotalAmount     Float
+  discountAmount     Float          @default(0.0)
+  couponCode         String?
+  couponDiscount     Float          @default(0.0)
+  shippingFee        Float          @default(0.0)
+  taxAmount          Float          @default(0.0)
+  totalPayableAmount Float
+  orderStatus        OrderStatus    @default(PENDING)
+  paymentStatus      PaymentStatus  @default(PENDING)
+  paymentGateway     PaymentGateway @default(RAZORPAY)
+  adminNotes         String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  user               User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items              OrderItem[]
+  couponUsages       CouponUsage[]
+  payment            Payment?
+  shipment           Shipment?
+
+  @@index([orderNumber])
+  @@index([userId])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id                  String         @id @default(uuid())
+  orderId             String
+  variantId           String
+  productNameSnapshot String
+  variantSizeSnapshot String
+  skuSnapshot         String
+  unitPrice           Float
+  quantity            Int
+  lineTotal           Float
+
+  order               Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant             ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+model Payment {
+  id                String         @id @default(uuid())
+  orderId           String         @unique
+  gateway           PaymentGateway
+  razorpayOrderId   String?        @unique
+  razorpayPaymentId String?        @unique
+  razorpaySignature String?
+  amount            Float
+  currency          String         @default("INR")
+  status            PaymentStatus  @default(PENDING)
+  gatewayResponse   String?        // JSON payload from gateway
+  refundId          String?
+  refundAmount      Float?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([status])
+}
+
+enum ShipmentStatus {
+  LABEL_CREATED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED_DELIVERY
+  RETURNED
+}
+
+model Shipment {
+  id             String         @id @default(uuid())
+  orderId        String         @unique
+  carrierName    String
+  trackingNumber String
+  status         ShipmentStatus @default(LABEL_CREATED)
+  dispatchedAt   DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([trackingNumber])
+  @@index([orderId])
+}
+
+// ------------------------------------------------------------------------------
+// 6. PROMOTIONS & REVIEWS
+// ------------------------------------------------------------------------------
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+model Coupon {
+  id             String        @id @default(uuid())
+  code           String        @unique
+  description    String?
+  discountType   DiscountType
+  discountValue  Float
+  minOrderValue  Float         @default(0.0)
+  maxDiscountCap Float?
+  usageLimit     Int?
+  perUserLimit   Int           @default(1)
+  usedCount      Int           @default(0)
+  startDate      DateTime
+  endDate        DateTime
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  usages         CouponUsage[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model CouponUsage {
+  id        String   @id @default(uuid())
+  couponId  String
+  userId    String
+  orderId   String
+  createdAt DateTime @default(now())
+
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, userId, orderId])
+  @@index([couponId])
+  @@index([userId])
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  productId  String
+  userId     String
+  rating     Int
+  title      String?
+  comment    String
+  isVerified Boolean  @default(false)
+  isApproved Boolean  @default(false)
+  adminReply String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+  @@index([isApproved])
+}
+
+// ------------------------------------------------------------------------------
+// 7. CMS, BLOG & HOMEPAGE BUILDER
+// ------------------------------------------------------------------------------
+
+model Banner {
+  id           String   @id @default(uuid())
+  title        String
+  subtitle     String?
+  imageUrl     String
+  mobileImgUrl String?
+  linkUrl      String?
+  buttonText   String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model HomepageSection {
+  id         String   @id @default(uuid())
+  sectionKey String   @unique
+  title      String
+  subtitle   String?
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  metadata   String?  // JSON config
+  updatedAt  DateTime @updatedAt
+}
+
+model Testimonial {
+  id          String   @id @default(uuid())
+  authorName  String
+  location    String?
+  rating      Int      @default(5)
+  reviewQuote String
+  avatarUrl   String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model FaqItem {
+  id        String   @id @default(uuid())
+  category  String
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model BlogPost {
+  id              String           @id @default(uuid())
+  title           String
+  slug            String           @unique
+  summary         String?
+  content         String
+  featuredImg     String?
+  authorName      String           @default("Sholkveda Ayurvedic Expert")
+  readTimeMinutes Int              @default(5)
+  isPublished     Boolean          @default(false)
+  publishedAt     DateTime?
+  metaTitle       String?
+  metaDescription String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  categories      BlogToCategory[]
+
+  @@index([slug])
+  @@index([isPublished])
+}
+
+model BlogCategory {
+  id    String           @id @default(uuid())
+  name  String
+  slug  String           @unique
+  posts BlogToCategory[]
+
+  @@index([slug])
+}
+
+model BlogToCategory {
+  postId     String
+  categoryId String
+  post       BlogPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category   BlogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryId])
+}
+
+model StaticPage {
+  id              String   @id @default(uuid())
+  slug            String   @unique
+  title           String
+  content         String
+  metaTitle       String?
+  metaDescription String?
+  updatedAt       DateTime @updatedAt
+}
+
+// ------------------------------------------------------------------------------
+// 8. CONFIGURATION, AUDIT & BUSINESS SETTINGS
+// ------------------------------------------------------------------------------
+
+model BusinessSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  userEmail  String?
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   String?  // JSON
+  newValue   String?  // JSON
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
