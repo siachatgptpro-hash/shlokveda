@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.MANAGE_USERS);
+    await authenticateAdmin(req, PermissionKey.MANAGE_USERS);
     const users = await UserRepository.listAll();
     return NextResponse.json({ success: true, data: users });
   } catch (error) {

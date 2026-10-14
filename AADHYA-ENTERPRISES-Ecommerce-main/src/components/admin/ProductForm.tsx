@@ -125,6 +125,22 @@ export function ProductForm({ initialProduct, categories }: ProductFormProps) {
     setVariants(updated);
   };
 
+/**
+ * The API returns per-field validation errors; surface them so the form does
+ * not just say "please check the product details".
+ */
+function describeApiError(error: any): string {
+  const base = typeof error?.message === 'string' ? error.message : 'Failed to save product';
+  const fieldErrors = error?.details?.fieldErrors;
+  if (!fieldErrors || typeof fieldErrors !== 'object') return base;
+
+  const lines = Object.entries(fieldErrors as Record<string, unknown>)
+    .filter(([, messages]) => Array.isArray(messages) && messages.length > 0)
+    .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`);
+
+  return lines.length ? `${base}\n${lines.join('\n')}` : base;
+}
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -179,7 +195,7 @@ export function ProductForm({ initialProduct, categories }: ProductFormProps) {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error?.message || 'Failed to save product');
+        throw new Error(describeApiError(data.error));
       }
 
       setSuccessMsg('Ayurvedic formulation saved successfully!');
@@ -228,7 +244,7 @@ export function ProductForm({ initialProduct, categories }: ProductFormProps) {
       {errorMsg && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-xs font-medium flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
+          <span className="whitespace-pre-line">{errorMsg}</span>
         </div>
       )}
 

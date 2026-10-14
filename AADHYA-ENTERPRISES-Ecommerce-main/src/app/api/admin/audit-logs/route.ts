@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.VIEW_AUDIT_LOGS);
+    await authenticateAdmin(req, PermissionKey.VIEW_AUDIT_LOGS);
     const logs = await AuditRepository.listAll();
     return NextResponse.json({ success: true, data: logs });
   } catch (error) {

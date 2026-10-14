@@ -92,7 +92,16 @@ export class CouponRepository {
   }
 
   public static async recordGuestUsage(couponId:string):Promise<void>{
-    if(!isPostgresConfigured()){const coupon=db.coupons.get(couponId);if(coupon)db.coupons.set(couponId,{...coupon,usedCount:coupon.usedCount+1,updatedAt:new Date().toISOString()});return;}
+    if(!isPostgresConfigured()){
+      const coupon=db.coupons.get(couponId);
+      if(!coupon)return;
+      // Match the database path: never let guest redemptions exceed usageLimit.
+      if(coupon.usageLimit!==null&&coupon.usageLimit!==undefined&&coupon.usedCount>=coupon.usageLimit){
+        throw new ValidationError('This coupon has reached its usage limit.');
+      }
+      db.coupons.set(couponId,{...coupon,usedCount:coupon.usedCount+1,updatedAt:new Date().toISOString()});
+      return;
+    }
     await withPostgresTransaction(async(client)=>{
       const r=await client.query('UPDATE "Coupon" SET "usedCount"="usedCount"+1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND ("usageLimit" IS NULL OR "usedCount"<"usageLimit") RETURNING "id"',[couponId]);
       if(!r.rows[0])throw new ValidationError('This coupon has reached its usage limit.');

@@ -10,8 +10,35 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
 const globalForAuth = globalThis as typeof globalThis & { shlokvedaRuntimeAuthSecret?: string };
-const JWT_SECRET = process.env.AUTH_SECRET || (globalForAuth.shlokvedaRuntimeAuthSecret ??= crypto.randomBytes(32).toString('hex'));
+
+/**
+ * Session signing secret.
+ *
+ * A missing or short secret is fatal in production: silently generating a
+ * per-process secret (the previous behaviour) would invalidate every session on
+ * each cold start and would make session handling unpredictable across
+ * instances. Local preview mode still gets an ephemeral secret so `npm run dev`
+ * works out of the box.
+ */
+function getJwtSecret(): string {
+  const configured = process.env.AUTH_SECRET?.trim();
+  if (configured) {
+    if (process.env.NODE_ENV === 'production' && configured.length < 32) {
+      throw new Error('AUTH_SECRET must be at least 32 characters in production.');
+    }
+    return configured;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('AUTH_SECRET must be configured before running the production storefront.');
+  }
+
+  return (globalForAuth.shlokvedaRuntimeAuthSecret ??= crypto.randomBytes(32).toString('hex'));
+}
+
 const TOKEN_EXPIRY = '7d';
+/** Short-lived, single-order reference used by the guest order confirmation page. */
+const ORDER_ACCESS_TOKEN_EXPIRY = '30d';
 
 export interface TokenPayload {
   userId: string;
@@ -19,6 +46,12 @@ export interface TokenPayload {
   fullName: string;
   roles: SystemRole[];
   permissions: PermissionKey[];
+}
+
+export interface OrderAccessTokenPayload {
+  scope: 'order';
+  orderId: string;
+  orderNumber: string;
 }
 
 export class AuthService {
@@ -90,14 +123,33 @@ export class AuthService {
       roles: user.roles || [SystemRole.CUSTOMER],
       permissions: user.permissions || [],
     };
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_EXPIRY });
   }
 
   public static verifyToken(token: string): TokenPayload {
     try {
-      return jwt.verify(token, JWT_SECRET) as TokenPayload;
+      return jwt.verify(token, getJwtSecret()) as TokenPayload;
     } catch {
       throw new AuthenticationError('Invalid or expired authentication session. Please log in.');
+    }
+  }
+
+  /**
+   * Signed reference that lets a guest (no account) open exactly one order
+   * confirmation page. It replaces the previous behaviour of trusting a bare,
+   * sequential order number in the query string.
+   */
+  public static generateOrderAccessToken(orderId: string, orderNumber: string): string {
+    const payload: OrderAccessTokenPayload = { scope: 'order', orderId, orderNumber };
+    return jwt.sign(payload, getJwtSecret(), { expiresIn: ORDER_ACCESS_TOKEN_EXPIRY });
+  }
+
+  public static verifyOrderAccessToken(token: string): OrderAccessTokenPayload | null {
+    try {
+      const payload = jwt.verify(token, getJwtSecret()) as OrderAccessTokenPayload;
+      return payload?.scope === 'order' && payload.orderId ? payload : null;
+    } catch {
+      return null;
     }
   }
 
@@ -134,6 +186,8 @@ export class AuthService {
   public login(emailOrPhone: string, password: string) { return AuthService.login(emailOrPhone, password); }
   public generateToken(user: any) { return AuthService.generateToken(user); }
   public verifyToken(token: string) { return AuthService.verifyToken(token); }
+  public generateOrderAccessToken(orderId: string, orderNumber: string) { return AuthService.generateOrderAccessToken(orderId, orderNumber); }
+  public verifyOrderAccessToken(token: string) { return AuthService.verifyOrderAccessToken(token); }
   public getCurrentUser(token: string) { return AuthService.getCurrentUser(token); }
   public requirePermission(payload: any, perm: any) { return AuthService.requirePermission(payload, perm); }
   public requireRole(payload: any, roles: any) { return AuthService.requireRole(payload, roles); }

@@ -135,6 +135,25 @@ export class OrderRepository {
     return null;
   }
 
+  /** Resolve an order from a Razorpay order id (used by the payment webhook). */
+  public static async findByRazorpayOrderId(razorpayOrderId: string): Promise<Order | null> {
+    if (isPostgresConfigured()) {
+      const r = await pgQuery(
+        'SELECT o.* FROM "Order" o INNER JOIN "Payment" p ON p."orderId" = o."id" WHERE p."razorpayOrderId" = $1 LIMIT 1',
+        [razorpayOrderId]
+      );
+      return r.rows[0] ? hydrateDbOrder(r.rows[0]) : null;
+    }
+    const payments = Array.from(db.payments.values());
+    for (const payment of payments) {
+      if (payment.razorpayOrderId === razorpayOrderId) {
+        const order = db.orders.get(payment.orderId);
+        return order ? this.populateOrder(order) : null;
+      }
+    }
+    return null;
+  }
+
   public static async listOrders(options: OrderFilterOptions = {}): Promise<{
     orders: Order[];
     total: number;
@@ -217,7 +236,7 @@ export class OrderRepository {
     return this.populateOrder(updated);
   }
 
-  public static async completePaymentAtomically(orderId:string,razorpayOrderId:string,razorpayPaymentId:string,razorpaySignature:string):Promise<{order:Order|null;alreadyPaid:boolean}>{
+  public static async completePaymentAtomically(orderId:string,razorpayOrderId:string,razorpayPaymentId:string,razorpaySignature:string|null):Promise<{order:Order|null;alreadyPaid:boolean}>{
     if(!isPostgresConfigured())throw new Error('Atomic PostgreSQL payment completion is only available when DATABASE_URL is configured.');
     let alreadyPaid=false,found=false;
     await withPostgresTransaction(async(client)=>{

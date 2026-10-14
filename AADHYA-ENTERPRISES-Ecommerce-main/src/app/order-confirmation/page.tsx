@@ -1,27 +1,46 @@
 import React from 'react';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { orderRepository } from '@/repositories/order.repository';
 import { settingsRepository } from '@/repositories/settings.repository';
+import { AuthService } from '@/services/auth.service';
 import { CheckCircle2, Package, Phone } from 'lucide-react';
 
 interface OrderConfirmationPageProps {
   searchParams: {
     orderId?: string;
     orderNumber?: string;
+    t?: string;
   };
 }
 
 export const metadata = { robots: { index: false, follow: false } };
+export const dynamic = 'force-dynamic';
 
 export default async function OrderConfirmationPage({ searchParams }: OrderConfirmationPageProps) {
-  const { orderId, orderNumber } = searchParams;
-  let order = null;
+  const { orderId, orderNumber, t } = searchParams;
 
-  if (orderId) {
-    order = await orderRepository.findById(orderId);
-  } else if (orderNumber) {
-    order = await orderRepository.findByOrderNumber(orderNumber);
-  }
+  // The delivery address on this page is personal data, so it is shown only to
+  // the account that placed the order or to the browser holding the signed
+  // per-order reference handed out at checkout.
+  const sessionToken = cookies().get('shlokveda_session_token')?.value;
+  const sessionUser = sessionToken ? await AuthService.getCurrentUser(sessionToken).catch(() => null) : null;
+  const access = t ? AuthService.verifyOrderAccessToken(t) : null;
+
+  const targetId = orderId || access?.orderId;
+  const targetNumber = orderNumber || access?.orderNumber;
+
+  const candidate = targetId
+    ? await orderRepository.findById(targetId)
+    : targetNumber
+      ? await orderRepository.findByOrderNumber(targetNumber)
+      : null;
+
+  const ownsOrder = !!candidate && !!sessionUser && candidate.userId === sessionUser.id;
+  const tokenMatchesOrder =
+    !!candidate && !!access && (access.orderId === candidate.id || access.orderNumber === candidate.orderNumber);
+
+  const order = ownsOrder || tokenMatchesOrder ? candidate : null;
 
   const business = await settingsRepository.getBusinessSettings();
 
@@ -38,10 +57,12 @@ export default async function OrderConfirmationPage({ searchParams }: OrderConfi
             {order ? 'Order saved in this preview' : 'Order details unavailable'}
           </span>
           <h1 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
-            {order ? 'Thank you. Your order has been recorded in this preview' : 'We could not retrieve this order from the current server session'}
+            {order ? 'Thank you. Your order has been recorded in this preview' : 'We could not retrieve this order on this device'}
           </h1>
           <p className="text-sm text-gray-600 max-w-lg mx-auto font-light">
-            Review the order details below. Preview orders are held in memory and are not guaranteed to persist after a server restart.
+            {order
+              ? 'Review the order details below. Preview orders are held in memory and are not guaranteed to persist after a server restart.'
+              : 'For your privacy this page is only available on the device that placed the order. Sign in to the account used at checkout, or open the confirmation link from your order email or message.'}
           </p>
         </div>
 
@@ -142,34 +163,34 @@ export default async function OrderConfirmationPage({ searchParams }: OrderConfi
           </div>
         </div>
       ) : (
-        <div className="p-8 bg-white rounded-2xl border border-gray-200 text-center">
-          <p className="text-xs text-gray-500">Order details are not available in this server session. Preview orders may be lost after a restart.</p>
+        <div className="p-8 bg-white rounded-2xl border border-gray-200 text-center space-y-4">
+          <p className="text-sm text-gray-700 font-bold">
+            This order is not available on this device.
+          </p>
+          <p className="text-xs text-gray-500">
+            Order confirmations are private. Please sign in to view your order history, or contact us with your order reference.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <Link
+              href="/account"
+              className="px-6 py-2.5 rounded-xl bg-[#1B4332] text-white font-bold text-xs"
+            >
+              Go to my account
+            </Link>
+            <Link
+              href="/shop"
+              className="px-6 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-bold text-xs hover:bg-gray-200"
+            >
+              Continue shopping
+            </Link>
+          </div>
+          {business.phone && (
+            <p className="text-xs text-gray-500 flex items-center justify-center gap-1.5 pt-2">
+              <Phone className="w-3.5 h-3.5" /> Need help? Call {business.phone}
+            </p>
+          )}
         </div>
       )}
-
-      {/* SUPPORT CARD & ACTIONS */}
-      <div className="p-6 bg-[#FAF7F2] rounded-3xl border border-[#F3EFE6] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#1B4332] text-white flex items-center justify-center">
-            <Phone className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-gray-900">Need Assistance with your Order?</h4>
-            <p className="text-[11px] text-gray-600">
-              <a href={`tel:+${business.phone}`} className="underline">Call +{business.phone}</a>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-3">
-          <Link
-            href="/shop"
-            className="px-6 py-3 rounded-full bg-[#1B4332] text-white font-bold text-xs hover:bg-[#2D6A4F] transition-all"
-          >
-            Continue Shopping
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }

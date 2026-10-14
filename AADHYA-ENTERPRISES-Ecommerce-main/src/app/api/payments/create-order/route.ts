@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
         currency: 'INR',
         keyId: result.keyId,
         order: result.order,
+        accessToken: AuthService.generateOrderAccessToken(result.order.id, result.order.orderNumber),
       },
     });
   } catch (error) {

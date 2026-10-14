@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.MANAGE_COUPONS);
+    await authenticateAdmin(req, PermissionKey.MANAGE_COUPONS);
     const coupons = await CouponRepository.listAll();
     return NextResponse.json({ success: true, data: coupons });
   } catch (error) {
@@ -21,9 +21,21 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = authenticateAdmin(req, PermissionKey.MANAGE_COUPONS);
+    const admin = await authenticateAdmin(req, PermissionKey.MANAGE_COUPONS);
     const json = await req.json();
-    const payload = CouponSchema.parse(json);
+
+    // Accept the legacy form field names (minOrderAmount / maxDiscountAmount /
+    // "FLAT") so a cached admin screen cannot silently create a coupon with a
+    // zero minimum order value and no discount cap.
+    const normalized = {
+      ...json,
+      minOrderValue: json?.minOrderValue ?? json?.minOrderAmount,
+      maxDiscountCap:
+        json?.maxDiscountCap ?? json?.maxDiscountAmount ?? (json?.discountType === 'FIXED_AMOUNT' ? undefined : undefined),
+      discountType: json?.discountType === 'FLAT' ? 'FIXED_AMOUNT' : json?.discountType,
+    };
+
+    const payload = CouponSchema.parse(normalized);
 
     const coupon = await CouponRepository.create(payload as any);
 

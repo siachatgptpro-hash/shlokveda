@@ -131,7 +131,9 @@ export default function CheckoutPage() {
         }
 
         await clearCart();
-        router.push(`/order-confirmation?orderId=${data.data.order.id}&orderNumber=${data.data.order.orderNumber}`);
+        router.push(
+          `/order-confirmation?orderId=${data.data.order.id}&orderNumber=${data.data.order.orderNumber}&t=${encodeURIComponent(data.data.accessToken || '')}`
+        );
       } else {
         // RAZORPAY PAYMENT FLOW
         const initRes = await fetch('/api/payments/create-order', {
@@ -155,7 +157,7 @@ export default function CheckoutPage() {
           throw new Error(initData.error?.message || 'Failed to initialize payment gateway');
         }
 
-        const { razorpayOrderId, amount, currency, orderId, keyId } = initData.data;
+        const { razorpayOrderId, amount, currency, orderId, keyId, accessToken } = initData.data;
 
         // Open Razorpay Modal only when the real checkout script has loaded
         if (typeof window !== 'undefined' && window.Razorpay) {
@@ -194,7 +196,9 @@ export default function CheckoutPage() {
                 }
 
                 await clearCart();
-                router.push(`/order-confirmation?orderId=${orderId}`);
+                router.push(
+                  `/order-confirmation?orderId=${orderId}&t=${encodeURIComponent(accessToken || '')}`
+                );
               } catch (verifyErr: any) {
                 setErrorMsg(verifyErr.message || 'Payment verification error.');
                 setSubmitting(false);

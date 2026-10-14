@@ -224,7 +224,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         mrp: calcItem?.mrp || unitPrice,
         sellingPrice: unitPrice,
         costPrice: 0,
-        stockQuantity: 50,
+        stockQuantity: calcItem?.availableStock ?? 0,
         reservedQuantity: 0,
         lowStockThreshold: 5,
         weightInGrams: 100,

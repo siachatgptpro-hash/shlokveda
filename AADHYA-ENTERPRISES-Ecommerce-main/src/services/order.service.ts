@@ -180,6 +180,38 @@ export class OrderService {
     // Cryptographic signature verification
     await RazorpayService.verifySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
+    return this.finalisePaidOrder(order, razorpayOrderId, razorpayPaymentId, razorpaySignature);
+  }
+
+  /**
+   * 2b. Complete an order from a verified Razorpay webhook.
+   *
+   * The webhook payload is already authenticated by the `x-razorpay-signature`
+   * HMAC checked in the route, so no payment signature exists to re-verify
+   * here: the previous code passed a literal placeholder string, which meant
+   * every capture event failed verification and never completed an order.
+   */
+  public static async completeWebhookPayment(
+    razorpayOrderId: string,
+    razorpayPaymentId: string
+  ): Promise<Order | null> {
+    const order = await OrderRepository.findByRazorpayOrderId(razorpayOrderId);
+    if (!order) return null;
+    if (order.paymentGateway !== PaymentGateway.RAZORPAY) return null;
+    if (order.paymentStatus === PaymentStatus.PAID) return order; // Idempotent replay
+    if (order.orderStatus === OrderStatus.CANCELLED) return null;
+
+    return this.finalisePaidOrder(order, razorpayOrderId, razorpayPaymentId, null, 'Razorpay webhook capture');
+  }
+
+  /** Shared completion path: stock, coupon usage, payment and order status. */
+  private static async finalisePaidOrder(
+    order: Order,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string | null,
+    note = 'Prepaid order verified successfully via Razorpay'
+  ): Promise<Order> {
     if (isPostgresConfigured()) {
       const completed=await OrderRepository.completePaymentAtomically(order.id,razorpayOrderId,razorpayPaymentId,razorpaySignature);
       if(!completed.order)throw new NotFoundError('Order');
@@ -214,11 +246,7 @@ export class OrderService {
       status: PaymentStatus.PAID,
     });
 
-    const confirmedOrder = await OrderRepository.updateOrderStatus(
-      order.id,
-      OrderStatus.CONFIRMED,
-      'Prepaid order verified successfully via Razorpay'
-    );
+    const confirmedOrder = await OrderRepository.updateOrderStatus(order.id, OrderStatus.CONFIRMED, note);
 
     await AuditRepository.log(
       'ORDER_PAYMENT_CAPTURED',
@@ -321,6 +349,9 @@ export class OrderService {
   public initiateCheckout(input: any) { return OrderService.initiateCheckout(input); }
   public verifyAndCompletePayment(orderId: string, rzpOrderId: string, rzpPaymentId: string, sig: string) {
     return OrderService.verifyAndCompletePayment(orderId, rzpOrderId, rzpPaymentId, sig);
+  }
+  public completeWebhookPayment(rzpOrderId: string, rzpPaymentId: string) {
+    return OrderService.completeWebhookPayment(rzpOrderId, rzpPaymentId);
   }
   public updateFulfillment(orderId: string, status: any, carrier?: string, trackingNumber?: string, adminNotes?: string) {
     return OrderService.updateFulfillment(orderId, status, carrier, trackingNumber, adminNotes);

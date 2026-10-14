@@ -6,7 +6,16 @@ import { handleApiError } from '@/lib/errors';
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json();
-    const payload = RegisterSchema.parse(json);
+
+    // The sign-up form posts `name`; the schema (and the API contract) uses
+    // `fullName`. Accept both so a client-side rename cannot break sign-ups.
+    const normalized = {
+      ...json,
+      fullName: json?.fullName ?? json?.name,
+      ...(json?.phone === '' ? { phone: undefined } : {}),
+    };
+
+    const payload = RegisterSchema.parse(normalized);
     const result = await AuthService.register(payload);
 
     const response = NextResponse.json({ success: true, data: result }, { status: 201 });

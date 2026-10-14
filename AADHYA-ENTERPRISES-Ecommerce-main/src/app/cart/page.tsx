@@ -124,7 +124,7 @@ export default function CartPage() {
               const size = item.productVariant?.sizeLabel || '';
               const unitPrice = item.unitPrice || 0;
               const totalPrice = item.totalPrice || 0;
-              const maxStock = item.productVariant?.stockQuantity || 10;
+              const maxStock = Math.max(item.quantity, item.productVariant?.stockQuantity || 0);
 
               return (
                 <div key={item.id} className="p-4 sm:p-6 flex gap-4 sm:gap-6 items-center">

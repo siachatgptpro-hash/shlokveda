@@ -195,7 +195,12 @@ export class PricingService {
     } else if (coupon.discountType === DiscountType.FIXED_AMOUNT) {
       discount = Math.min(coupon.discountValue, subtotal);
     } else if (coupon.discountType === DiscountType.FREE_SHIPPING) {
-      discount = 50;
+      // Waive the configured shipping fee instead of a hardcoded amount.
+      const configuredFee =
+        (await SettingsRepository.get('BASE_SHIPPING_FEE')) ||
+        (await SettingsRepository.get('DEFAULT_SHIPPING_FEE')) ||
+        '50';
+      discount = Number(configuredFee) || 0;
     }
 
     return {

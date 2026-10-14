@@ -21,21 +21,25 @@ export async function POST(req: NextRequest) {
     const event = JSON.parse(rawBody);
 
     if (event.event === 'payment.captured') {
-      const paymentEntity = event.payload.payment.entity;
-      const rzpOrderId = paymentEntity.order_id;
-      const rzpPaymentId = paymentEntity.id;
+      const paymentEntity = event.payload?.payment?.entity;
+      const rzpOrderId = paymentEntity?.order_id;
+      const rzpPaymentId = paymentEntity?.id;
 
-      // Find order by razorpayOrderId
-      const orders = await OrderRepository.listOrders({ limit: 1000 });
-      const targetOrder = orders.orders.find((o) => o.payment?.razorpayOrderId === rzpOrderId);
+      if (typeof rzpOrderId === 'string' && typeof rzpPaymentId === 'string') {
+        // The event body is already authenticated by the HMAC above, so the
+        // order is completed directly instead of re-verifying a payment
+        // signature that a webhook never carries.
+        await OrderService.completeWebhookPayment(rzpOrderId, rzpPaymentId);
+      }
+    } else if (event.event === 'payment.failed') {
+      const paymentEntity = event.payload?.payment?.entity;
+      const rzpOrderId = paymentEntity?.order_id;
 
-      if (targetOrder && targetOrder.paymentStatus !== PaymentStatus.PAID) {
-        await OrderService.verifyAndCompletePayment(
-          targetOrder.id,
-          rzpOrderId,
-          rzpPaymentId,
-          'sig_valid_webhook_capture'
-        );
+      if (typeof rzpOrderId === 'string') {
+        const order = await OrderRepository.findByRazorpayOrderId(rzpOrderId);
+        if (order && order.paymentStatus !== PaymentStatus.PAID) {
+          await OrderRepository.updatePayment(order.id, { status: PaymentStatus.FAILED });
+        }
       }
     }
 

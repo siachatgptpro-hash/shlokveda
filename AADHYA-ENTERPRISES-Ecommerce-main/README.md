@@ -47,11 +47,24 @@ Open the local Next.js URL printed by the dev server. Without `DATABASE_URL`, th
 ```bash
 npm run test:backend
 npm run test:qa
+npm run test:security
 npx tsc --noEmit
 npm run build
 ```
 
 The automated backend checks run against the in-memory preview mode unless a database URL is configured; they do not replace live Neon validation.
+
+`npm run test:security` exercises the access-control and input-validation fixes directly against the route handlers (`test-security.ts`): admin authorization, settings exposure, inventory and coupon field handling, banner URL validation, order access tokens, webhook idempotency, session logout, and login throttling.
+
+## Security notes
+
+- Every admin route and the admin layout re-read the caller's roles and permissions from the database on each request. A JWT with stale or forged claims is not sufficient.
+- `/api/admin/settings` accepts only the allow-listed business keys; payment credentials and anything matching `secret`/`password`/`token`/`api_key` are stored private and are never returned by the public `/api/cms` payload.
+- Order confirmation and tracking accept either the signed order access token returned at order creation or an authenticated owner session.
+- Login is throttled per IP and identifier (8 attempts / 15 minutes) and `/api/auth/logout` clears the session cookie; the account password must be at least 8 characters.
+- Razorpay webhooks are HMAC-verified, matched to an order by `razorpay_order_id`, and replay-safe (stock is decremented once).
+
+Still to do before launch (see `SECURITY-AUDIT.md` in the repository root): migrate from Next.js 14.2.x to a currently supported major (several advisories, including two remote-code-execution issues, are only fixed in Next.js 16.4.0), add a Content-Security-Policy, shorten the session lifetime and add password reset/email verification, store a shipment tracking URL if that field is needed, and validate the database-backed paths against a private `DATABASE_URL`.
 
 ## Main directories
 

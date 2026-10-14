@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User } from '@/types';
 
 interface RegisterData {
-  name: string;
+  name?: string;
+  fullName?: string;
   email: string;
   phone?: string;
   password?: string;
@@ -17,7 +18,7 @@ interface AuthContextType {
   loading: boolean;
   login: (param1: string, param2?: string | User) => Promise<void> | void;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
 }
 
@@ -94,12 +95,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('shlokveda_user', JSON.stringify(resData.data.user));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Ask the server to expire the HttpOnly session cookie first; the browser
+    // cannot clear it from script.
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Sign-out continues even if the request fails, so the user is not trapped.
+    }
+
     setToken(null);
     setUser(null);
     localStorage.removeItem('shlokveda_token');
     localStorage.removeItem('shlokveda_user');
-    // Clear cookie
+    // Best-effort cleanup of any non-HttpOnly copy of the cookie.
     document.cookie = 'shlokveda_session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   };
 

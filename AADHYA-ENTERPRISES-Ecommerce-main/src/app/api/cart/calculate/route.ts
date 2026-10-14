@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { CartSyncSchema } from '@/schemas';
 import { PricingService } from '@/services/pricing.service';
 import { AuthService } from '@/services/auth.service';
 import { handleApiError } from '@/lib/errors';
@@ -6,8 +7,11 @@ import { handleApiError } from '@/lib/errors';
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json();
-    const items = json.items || [];
-    const couponCode = json.couponCode;
+    // Validate the cart shape so quantities and variant ids are bounded before
+    // they reach the pricing engine.
+    const payload = CartSyncSchema.parse(json);
+    const items = payload.items;
+    const couponCode = payload.couponCode;
 
     // Optional user token
     let userId: string | undefined = undefined;

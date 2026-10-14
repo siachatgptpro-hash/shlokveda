@@ -13,7 +13,7 @@ export default function AdminCouponsPage() {
 
   // Form State
   const [code, setCode] = useState('');
-  const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FLAT'>('PERCENTAGE');
+  const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FIXED_AMOUNT'>('PERCENTAGE');
   const [discountValue, setDiscountValue] = useState(10);
   const [minOrderAmount, setMinOrderAmount] = useState(499);
   const [maxDiscountAmount, setMaxDiscountAmount] = useState(200);
@@ -52,8 +52,8 @@ export default function AdminCouponsPage() {
           code: code.trim().toUpperCase(),
           discountType,
           discountValue: Number(discountValue),
-          minOrderAmount: Number(minOrderAmount),
-          maxDiscountAmount: discountType === 'PERCENTAGE' ? Number(maxDiscountAmount) : undefined,
+          minOrderValue: Number(minOrderAmount),
+          maxDiscountCap: discountType === 'PERCENTAGE' ? Number(maxDiscountAmount) : undefined,
           usageLimit: Number(usageLimit),
           startDate: new Date().toISOString(),
           endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
@@ -140,9 +140,9 @@ export default function AdminCouponsPage() {
                         ? `${c.discountValue}% OFF`
                         : `₹${c.discountValue} FLAT OFF`}
                     </td>
-                    <td className="py-3 px-4 text-gray-600">₹{c.minOrderAmount || 0}</td>
+                    <td className="py-3 px-4 text-gray-600">₹{c.minOrderValue || 0}</td>
                     <td className="py-3 px-4 text-gray-600">
-                      {c.usageCount} / {c.usageLimit || '∞'}
+                      {c.usedCount} / {c.usageLimit || '∞'}
                     </td>
                     <td className="py-3 px-4">
                       {c.isActive ? (
@@ -213,7 +213,7 @@ export default function AdminCouponsPage() {
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs bg-white"
                   >
                     <option value="PERCENTAGE">Percentage (%)</option>
-                    <option value="FLAT">Flat Amount (₹)</option>
+                    <option value="FIXED_AMOUNT">Flat Amount (₹)</option>
                   </select>
                 </div>
 

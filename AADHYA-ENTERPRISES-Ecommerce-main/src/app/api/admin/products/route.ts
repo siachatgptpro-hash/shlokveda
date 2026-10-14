@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateAdmin } from '@/lib/admin-auth';
+import { normalizeProductInput } from '@/lib/product-normalize';
 import { ProductMutationSchema } from '@/schemas';
 import { ProductRepository } from '@/repositories/product.repository';
 import { AuditRepository } from '@/repositories/audit.repository';
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.MANAGE_PRODUCTS);
+    await authenticateAdmin(req, PermissionKey.MANAGE_PRODUCTS);
     const data = await ProductRepository.listProducts({ limit: 100 });
     return NextResponse.json({ success: true, data });
   } catch (error) {
@@ -21,9 +22,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = authenticateAdmin(req, PermissionKey.MANAGE_PRODUCTS);
+    const admin = await authenticateAdmin(req, PermissionKey.MANAGE_PRODUCTS);
     const json = await req.json();
-    const payload = ProductMutationSchema.parse(json);
+    const payload = ProductMutationSchema.parse(normalizeProductInput(json));
 
     const { variants, images, ...productData } = payload;
     const newProduct = await ProductRepository.createProduct(

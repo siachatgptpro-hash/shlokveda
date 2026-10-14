@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { RazorpayVerifySchema } from '@/schemas';
 import { OrderService } from '@/services/order.service';
 import { handleApiError } from '@/lib/errors';
 
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json();
-    const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = json;
+    const payload = RazorpayVerifySchema.parse(json);
 
     const order = await OrderService.verifyAndCompletePayment(
-      orderId,
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
+      payload.orderId,
+      payload.razorpayOrderId,
+      payload.razorpayPaymentId,
+      payload.razorpaySignature
     );
 
     return NextResponse.json({

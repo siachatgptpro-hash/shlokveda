@@ -1,60 +1,33 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/context/auth-context';
-import {
-  LayoutDashboard,
-  Package,
-  Boxes,
-  ShoppingCart,
-  Users,
-  TicketPercent,
-  MessageSquare,
-  Image as ImageIcon,
-  Settings,
-  History,
-  Store,
-  LogOut,
-  ShieldAlert,
-} from 'lucide-react';
+import { cookies } from 'next/headers';
+import { AuthService } from '@/services/auth.service';
+import { SystemRole } from '@/types';
+import { ShieldAlert } from 'lucide-react';
+import AdminShell from './AdminShell';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const { user, logout, loading } = useAuth();
+const ADMIN_ROLES: SystemRole[] = [
+  SystemRole.SUPER_ADMIN,
+  SystemRole.ADMIN,
+  SystemRole.PRODUCT_MANAGER,
+  SystemRole.ORDER_MANAGER,
+  SystemRole.CONTENT_MANAGER,
+];
 
-  const navItems = [
-    { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-    { label: 'Products & SKUs', href: '/admin/products', icon: Package },
-    { label: 'Inventory Ledger', href: '/admin/inventory', icon: Boxes },
-    { label: 'Orders & Fulfillment', href: '/admin/orders', icon: ShoppingCart },
-    { label: 'Customer Directory', href: '/admin/customers', icon: Users },
-    { label: 'Coupons & Promos', href: '/admin/coupons', icon: TicketPercent },
-    { label: 'Review Moderation', href: '/admin/reviews', icon: MessageSquare },
-    { label: 'CMS & Banners', href: '/admin/cms', icon: ImageIcon },
-    { label: 'Hathras Settings', href: '/admin/settings', icon: Settings },
-    { label: 'Audit Trail', href: '/admin/audit-logs', icon: History },
-  ];
+export const dynamic = 'force-dynamic';
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-3 border-[#1B4332] border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  // If user is not admin, show permission gate
-  const isAdmin = user && (
-    user.roles?.includes('SUPER_ADMIN' as any) ||
-    user.roles?.includes('STORE_ADMIN' as any) ||
-    user.roles?.includes('ORDER_FULFILLMENT' as any) ||
-    user.role === 'SUPER_ADMIN' ||
-    user.role === 'STORE_ADMIN' ||
-    user.role === 'ORDER_FULFILLMENT'
-  );
+/**
+ * Server-side gate for the admin suite.
+ *
+ * The previous gate ran in the browser only, so Next.js still rendered (and
+ * serialised into the HTML) the dashboard's customer orders, revenue and stock
+ * data for every anonymous visitor. Authorisation is now enforced here, before
+ * any admin page component runs.
+ */
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const token = cookies().get('shlokveda_session_token')?.value;
+  const user = token ? await AuthService.getCurrentUser(token).catch(() => null) : null;
+  const isAdmin = !!user && !!user.roles?.some((role) => ADMIN_ROLES.includes(role));
 
   if (!user || !isAdmin) {
     return (
@@ -86,91 +59,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#F4F1EA] flex flex-col md:flex-row">
-      {/* ADMIN SIDEBAR */}
-      <aside className="w-full md:w-64 bg-[#1B4332] text-white shrink-0 flex flex-col justify-between border-r border-[#2D6A4F]">
-        <div className="p-5 space-y-6">
-          {/* Brand Logo */}
-          <div className="space-y-1">
-            <Link href="/admin" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#C5A880] text-[#1B4332] flex items-center justify-center font-serif font-black text-sm">
-                ॐ
-              </div>
-              <div>
-                <span className="font-serif text-sm font-black tracking-wider block text-white">
-                  SHOLKVEDA
-                </span>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-[#C5A880] block">
-                  Admin Control Suite
-                </span>
-              </div>
-            </Link>
-            <div className="text-[10px] text-emerald-300 font-medium pl-1">
-              📍 Hathras Unit (U.P. 204101)
-            </div>
-          </div>
-
-          {/* Nav Links */}
-          <nav className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href));
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-[#C5A880] text-[#1B4332] shadow-sm'
-                      : 'text-gray-200 hover:bg-[#2D6A4F] hover:text-white'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* User Info & Storefront Link */}
-        <div className="p-4 border-t border-[#2D6A4F] bg-[#143427] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <span className="text-xs font-bold text-white block truncate">{user.fullName || user.name || 'Admin'}</span>
-              <span className="text-[10px] text-amber-300 font-mono block uppercase">
-                {user.role || user.roles?.[0]}
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                logout();
-                router.push('/login');
-              }}
-              className="p-1.5 text-gray-300 hover:text-red-400 rounded-lg hover:bg-white/10"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-
-          <Link
-            href="/"
-            target="_blank"
-            className="flex items-center justify-center gap-2 w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
-          >
-            <Store className="w-3.5 h-3.5" />
-            <span>View Public Store</span>
-          </Link>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
-      </div>
-    </div>
-  );
+  return <AdminShell user={user}>{children}</AdminShell>;
 }

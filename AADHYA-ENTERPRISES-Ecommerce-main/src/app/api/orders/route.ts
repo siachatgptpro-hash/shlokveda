@@ -90,7 +90,18 @@ export async function POST(req: NextRequest) {
       userId,
     });
 
-    return NextResponse.json({ success: true, data: { order: result.order } }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          order: result.order,
+          // Guests have no account, so the confirmation page is opened with this
+          // signed per-order reference instead of a bare order number.
+          accessToken: AuthService.generateOrderAccessToken(result.order.id, result.order.orderNumber),
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     const err = handleApiError(error);
     return NextResponse.json(err.body, { status: err.status });

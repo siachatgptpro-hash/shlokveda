@@ -31,6 +31,7 @@ export default function RegisterPage() {
     try {
       await register({
         name: name.trim(),
+        fullName: name.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
         password,

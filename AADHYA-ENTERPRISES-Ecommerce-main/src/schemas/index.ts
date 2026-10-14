@@ -25,7 +25,7 @@ export const RegisterSchema = z.object({
     .regex(/^[6-9]\d{9}$/, 'Invalid 10-digit Indian phone number')
     .optional()
     .or(z.literal('')),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
 export const LoginSchema = z.object({
@@ -80,8 +80,17 @@ export const ProductVariantInputSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
+/** Product images live under /public, so root-relative paths are valid too. */
+const imageUrlOrPath = z
+  .string()
+  .trim()
+  .min(1, 'Image path or URL is required')
+  .refine((value) => value.startsWith('/') || /^https?:\/\//i.test(value), {
+    message: 'Use an https:// URL or a path starting with "/".',
+  });
+
 export const ProductImageInputSchema = z.object({
-  imageUrl: z.string().url('Valid image URL required'),
+  imageUrl: imageUrlOrPath,
   altText: z.string().trim().optional(),
   sortOrder: z.number().int().default(0),
   isPrimary: z.boolean().default(false),

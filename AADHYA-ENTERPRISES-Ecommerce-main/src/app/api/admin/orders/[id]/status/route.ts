@@ -11,7 +11,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const admin = authenticateAdmin(req, PermissionKey.MANAGE_ORDERS);
+    const admin = await authenticateAdmin(req, PermissionKey.MANAGE_ORDERS);
     const json = await req.json();
     const payload = OrderStatusUpdateSchema.parse(json);
 

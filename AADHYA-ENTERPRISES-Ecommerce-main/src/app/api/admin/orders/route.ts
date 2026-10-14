@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.MANAGE_ORDERS);
+    await authenticateAdmin(req, PermissionKey.MANAGE_ORDERS);
     const { searchParams } = new URL(req.url);
     const orderStatus = (searchParams.get('status') as OrderStatus) || undefined;
     const paymentStatus = (searchParams.get('paymentStatus') as PaymentStatus) || undefined;

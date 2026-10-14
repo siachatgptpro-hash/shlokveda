@@ -30,7 +30,6 @@ export default function AdminOrderDetailPage({ params }: AdminOrderDetailPagePro
   const [status, setStatus] = useState<OrderStatus>(OrderStatus.PENDING);
   const [carrier, setCarrier] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
-  const [trackingUrl, setTrackingUrl] = useState('');
   const [updating, setUpdating] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -44,7 +43,6 @@ export default function AdminOrderDetailPage({ params }: AdminOrderDetailPagePro
           setStatus(data.data.orderStatus || data.data.status || OrderStatus.PENDING);
           setCarrier(data.data.carrier || 'Delhivery');
           setTrackingNumber(data.data.trackingNumber || '');
-          setTrackingUrl(data.data.trackingUrl || '');
         }
       } catch (err) {
         console.error('Error fetching admin order detail:', err);
@@ -70,7 +68,6 @@ export default function AdminOrderDetailPage({ params }: AdminOrderDetailPagePro
           status,
           carrier: carrier.trim() || undefined,
           trackingNumber: trackingNumber.trim() || undefined,
-          trackingUrl: trackingUrl.trim() || undefined,
         }),
       });
 
@@ -209,18 +206,9 @@ export default function AdminOrderDetailPage({ params }: AdminOrderDetailPagePro
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1">
-                  Carrier Direct Tracking URL
-                </label>
-                <input
-                  type="url"
-                  value={trackingUrl}
-                  onChange={(e) => setTrackingUrl(e.target.value)}
-                  placeholder="https://track.delhivery.com/..."
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs focus:outline-none"
-                />
-              </div>
+              {/* Tracking URL is not stored on the shipment record yet, so this
+                  field is deliberately not offered to avoid saving data that is
+                  silently discarded. Add a Shipment.trackingUrl column first. */}
             </div>
 
             <div className="flex justify-end pt-2">

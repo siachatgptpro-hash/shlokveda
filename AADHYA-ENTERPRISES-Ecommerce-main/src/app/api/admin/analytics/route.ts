@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.VIEW_ANALYTICS);
+    await authenticateAdmin(req, PermissionKey.VIEW_ANALYTICS);
     const metrics = await AnalyticsService.getDashboardMetrics();
     return NextResponse.json({ success: true, data: metrics });
   } catch (error) {

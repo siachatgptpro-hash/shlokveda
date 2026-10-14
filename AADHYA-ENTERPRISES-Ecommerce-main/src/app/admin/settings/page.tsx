@@ -33,20 +33,21 @@ export default function AdminSettingsPage() {
         const res = await fetch('/api/admin/settings');
         const data = await res.json();
         if (data.success && data.data) {
+          // The API stores raw setting keys; map them onto the form fields.
           const s = data.data;
           setSettings(s);
-          setStoreName(s.storeName);
-          setGstin(s.gstin);
-          setPhone(s.phone);
-          setEmail(s.email);
-          setAddressLine1(s.addressLine1);
+          setStoreName(s.storeName ?? 'Sholkveda');
+          setGstin(s.gstin ?? '');
+          setPhone(s.phone ?? '7017840020');
+          setEmail(s.email ?? '');
+          setAddressLine1(s.addressLine1 ?? '');
           setAddressLine2(s.addressLine2 || '');
-          setCity(s.city);
-          setState(s.state);
-          setPostalCode(s.postalCode);
-          setFreeShippingThreshold(s.freeShippingThreshold);
-          setBaseShippingFee(s.baseShippingFee);
-          setEnableCod(s.enableCod);
+          setCity(s.city ?? 'Hathras');
+          setState(s.state ?? 'Uttar Pradesh');
+          setPostalCode(s.postalCode ?? '204101');
+          setFreeShippingThreshold(Number(s.freeShippingThreshold ?? 499));
+          setBaseShippingFee(Number(s.baseShippingFee ?? 50));
+          setEnableCod(s.enableCod !== false);
           setAnnouncementText(s.announcementText || '');
         }
       } catch (err) {

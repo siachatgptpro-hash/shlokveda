@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.MANAGE_INVENTORY);
+    await authenticateAdmin(req, PermissionKey.MANAGE_INVENTORY);
     const { searchParams } = new URL(req.url);
     const variantId = searchParams.get('variantId') || undefined;
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = authenticateAdmin(req, PermissionKey.MANAGE_INVENTORY);
+    const admin = await authenticateAdmin(req, PermissionKey.MANAGE_INVENTORY);
     const json = await req.json();
     const payload = StockAdjustmentSchema.parse(json);
 

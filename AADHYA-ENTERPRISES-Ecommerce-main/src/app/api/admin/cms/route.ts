@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    authenticateAdmin(req, PermissionKey.MANAGE_CMS);
+    await authenticateAdmin(req, PermissionKey.MANAGE_CMS);
     const banners = await CMSRepository.listBanners(false);
     const sections = await CMSRepository.listHomepageSections();
     const testimonials = await CMSRepository.listTestimonials(false);
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = authenticateAdmin(req, PermissionKey.MANAGE_CMS);
+    const admin = await authenticateAdmin(req, PermissionKey.MANAGE_CMS);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type') || 'banner';
     const json = await req.json();
